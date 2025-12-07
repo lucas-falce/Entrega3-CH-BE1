@@ -19,20 +19,25 @@ export default class ProductManager {
 //Obtener producto
     async getProductById(id) {
     const products = await this.getProducts()
+    parseInt(id)
     return products.find(p => p.id === id)
   }
 
 //Borrar producto
-    async deleteProduct(id) {
-    let products = await this.getProducts()
-    products = products.filter(p => p.id !== id)
-    await fs.writeFile(this.path, JSON.stringify(products, null, 2))
-  }
+async deleteProduct(id) {
+  const products = await this.getProducts()
+  const originalLength = products.length
+  const filtered = products.filter(p => p.id !== Number(id))
+
+  await fs.writeFile(this.path, JSON.stringify(filtered, null, 2))
+
+  return filtered.length < originalLength   // true = se borró; false = no existía
+}
 
 //Agregar producto
   async addProduct(productIn) {
     const products = await this.getProducts()
-    const id = products.length ? products[products.length - 1].id + 1 : 1 //Obtengo el id del producto
+    const id = products.length ? Math.max(...products.map(p => p.id)) + 1 : 1 //Obtengo el id del producto
     const newProduct = {id,...productIn}
     products.push(newProduct)
     await fs.writeFile(this.path, JSON.stringify(products, null, 2))
@@ -48,6 +53,6 @@ export default class ProductManager {
     await fs.writeFile(this.path, JSON.stringify(products, null, 2))
     return products[index]
 
-    } else {return("No se ha encontrado el id del producto")}
+    } else {return null}
   }
 }

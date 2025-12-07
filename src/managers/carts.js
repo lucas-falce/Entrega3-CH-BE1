@@ -29,7 +29,7 @@ async newCart(){
     const id = carts.length ? carts[carts.length - 1].id + 1 : 1 //Obtengo el id del carrito
     const nuevoCarrito = {id, products:[]}
     carts.push(nuevoCarrito)
-    fs.writeFile(this.path,JSON.stringify(carts, null, 2))
+    await fs.writeFile(this.path,JSON.stringify(carts, null, 2))
     return nuevoCarrito
 }
 
@@ -49,7 +49,7 @@ async newCart(){
         ProductoDelCarrito.quantity++
     }else {carts[index].products.push ({product: pid, quantity: 1})}
 
-    fs.writeFile(this.path,JSON.stringify(carts, null, 2))
+    await fs.writeFile(this.path,JSON.stringify(carts, null, 2))
     return carts[index]
  }else{return("No se ha encontrado el carrito")}
 }

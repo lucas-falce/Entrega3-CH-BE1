@@ -1,0 +1,121 @@
+<h1>Productos en tiempo real</h1>
+
+<hr>
+
+<h2>Crear producto</h2>
+
+<fieldset>
+    <legend>Nuevo producto</legend>
+
+    <form id="productForm">
+        <label>Título:</label><br>
+        <input id="title"><br><br>
+
+        <label>Descripción:</label><br>
+        <input id="description"><br><br>
+
+        <label>Código:</label><br>
+        <input id="code"><br><br>
+
+        <label>Precio:</label><br>
+        <input id="price" type="number"><br><br>
+
+        <label>Stock:</label><br>
+        <input id="stock" type="number"><br><br>
+
+        <label>Categoría:</label><br>
+        <input id="category"><br><br>
+
+        <button type="submit">Crear</button>
+    </form>
+</fieldset>
+
+<br><hr><br>
+
+<h2>Eliminar producto</h2>
+
+<fieldset>
+    <legend>Borrar producto</legend>
+
+    <form id="deleteForm">
+        <label>ID del producto:</label><br>
+        <input id="deleteId" type="number"><br><br>
+        <button type="submit">Eliminar</button>
+    </form>
+</fieldset>
+
+<br><hr><br>
+
+<h2>Lista de productos</h2>
+
+<table border="1" cellpadding="6">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Título</th>
+            <th>Precio</th>
+        </tr>
+    </thead>
+
+    <tbody id="productsList">
+        {{#each products}}
+        <tr>
+            <td>{{this.id}}</td>
+            <td>{{this.title}}</td>
+            <td>{{this.price}}</td>
+        </tr>
+        {{/each}}
+    </tbody>
+</table>
+
+<br><br>
+
+<script src="/socket.io/socket.io.js"></script>
+
+<script>
+    const socket = io()
+
+    // Actualización en tiempo real
+    socket.on("productsUpdated", (products) => {
+        const tbody = document.getElementById("productsList")
+        tbody.innerHTML = ""
+
+        products.forEach(p => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${p.id}</td>
+                    <td>${p.title}</td>
+                    <td>${p.price}</td>
+                </tr>
+            `
+        })
+    })
+
+    // Crear producto
+    document.getElementById("productForm").addEventListener("submit", e => {
+        e.preventDefault()
+
+        const product = {
+            title: title.value,
+            description: description.value,
+            code: code.value,
+            price: Number(price.value),
+            stock: Number(stock.value),
+            category: category.value
+        }
+
+        socket.emit("newProduct", product)
+
+        e.target.reset()
+    })
+
+    // Borrar producto
+    document.getElementById("deleteForm").addEventListener("submit", e => {
+        e.preventDefault()
+
+        const id = Number(deleteId.value)
+        socket.emit("deleteProduct", id)
+
+        e.target.reset()
+    })
+</script>
