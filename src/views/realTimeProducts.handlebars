@@ -58,13 +58,19 @@
     </thead>
 
     <tbody id="productsList">
-        {{#each products}}
-        <tr>
-            <td>{{this.id}}</td>
-            <td>{{this.title}}</td>
-            <td>{{this.price}}</td>
-        </tr>
-        {{/each}}
+        {{#if products.length}}
+            {{#each products}}
+            <tr>
+                <td>{{this.id}}</td>
+                <td>{{this.title}}</td>
+                <td>{{this.price}}</td>
+            </tr>
+            {{/each}}
+        {{else}}
+            <tr>
+                <td colspan="3">No hay productos cargados</td>
+            </tr>
+        {{/if}}
     </tbody>
 </table>
 
@@ -79,6 +85,15 @@
     socket.on("productsUpdated", (products) => {
         const tbody = document.getElementById("productsList")
         tbody.innerHTML = ""
+
+        if (products.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="3">No hay productos cargados</td>
+                </tr>
+            `
+            return
+        }
 
         products.forEach(p => {
             tbody.innerHTML += `
@@ -95,6 +110,10 @@
     document.getElementById("productForm").addEventListener("submit", e => {
         e.preventDefault()
 
+        if (!title.value || !price.value || !code.value) {
+            return
+        }
+
         const product = {
             title: title.value,
             description: description.value,
@@ -105,7 +124,6 @@
         }
 
         socket.emit("newProduct", product)
-
         e.target.reset()
     })
 
@@ -113,9 +131,8 @@
     document.getElementById("deleteForm").addEventListener("submit", e => {
         e.preventDefault()
 
+        if (!deleteId.value) return
+
         const id = Number(deleteId.value)
         socket.emit("deleteProduct", id)
-
-        e.target.reset()
-    })
-</script>
+        e.ta
