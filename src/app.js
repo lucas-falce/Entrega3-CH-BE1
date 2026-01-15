@@ -1,148 +1,211 @@
-
-
-//Imports
 import express from 'express'
-import ProductManager from './managers/products.js'
-import CartManager from './managers/carts.js'
+import mongoose from 'mongoose'
 import { engine } from 'express-handlebars'
-import { Server } from 'socket.io'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+import ProductModel from './models/product.model.js'
+import CartModel from './models/cart.model.js'
+import CartManager from './managers/carts.js'
+
+// __dirname
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-//Variables y constantes
+// App
 const app = express()
-const PORT= 8080
-const productManager = new ProductManager('./data/products.json')
-const cartManager = new CartManager('./data/carts.json')
+const PORT = 8080
+const cartManager = new CartManager()
 
-
-//para poder leer json.
+// Middlewares
 app.use(express.json())
+app.use(express.urlencoded({ extended: true }))
 
-////////////////////////  QUEDO OBSOLETO PARA LA ENTREGA 2  /////////////////////////
-//Servidor
-//app.listen(PORT, ()=>{
-    //console.log(`SERVIDOR ESTA CORRIENDO EN http://localhost:${PORT}`)
-//})
-/////////////////////////////////////////////////////////////////////////////////////
-
-app.get('/', (request,res)=>{
-    res.send("servidor funcionando y listo para trabajar")
-})
-
-
-//ENTREGA 2
+// Handlebars
 app.engine('handlebars', engine())
 app.set('view engine', 'handlebars')
 app.set('views', path.join(__dirname, 'views'))
-const server = app.listen(PORT, ()=>{
-    console.log(`SERVIDOR CORRIENDO EN http://localhost:${PORT}`)
+
+// Mongo
+mongoose.connect('mongodb://127.0.0.1:27017/ecommerce')
+  .then(() => console.log('Mongo conectado'))
+  .catch(err => console.error(err))
+
+// Server
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en http://localhost:${PORT}`)
 })
 
-const io = new Server(server)
+//////////////////// VISTAS ////////////////////
 
-app.get('/home', async (req, res) => {
-    const products = await productManager.getProducts()
-    res.render('home', { products })
+// /products
+app.get('/products', async (req, res) => {
+  const { page = 1 } = req.query
+
+  const result = await ProductModel.paginate({}, {
+    page: Number(page),
+    limit: 10,
+    lean: true
+  })
+
+  res.render('index', {
+    products: result.docs,
+    page: result.page,
+    totalPages: result.totalPages,
+    hasPrevPage: result.hasPrevPage,
+    hasNextPage: result.hasNextPage,
+    prevPage: result.prevPage,
+    nextPage: result.nextPage
+  })
 })
 
-app.get('/realtimeproducts', async (req, res) => {
-    const products = await productManager.getProducts()
-    res.render('realTimeProducts', { products })
+// /products/:pid
+app.get('/products/:pid', async (req, res) => {
+  const product = await ProductModel.findById(req.params.pid).lean()
+  if (!product) return res.status(404).send('Producto no encontrado')
+
+  res.render('productDetail', {
+    product,
+    cartId: 'PEGAR_ACA_UN_CART_ID_REAL'
+  })
 })
 
-/////////////// PRODUCTOS //////////////////////
+// /carts/:cid
+app.get('/carts/:cid', async (req, res) => {
+  const cart = await CartModel.findById(req.params.cid)
+    .populate('products.product')
+    .lean()
 
-// GET products - Listar todos los productos
+  if (!cart) return res.status(404).send('Carrito no encontrado')
+
+  res.render('cart', { cart })
+})
+
+//////////////////// API PRODUCTS ////////////////////
+
+// GET products
 app.get('/api/products', async (req, res) => {
-  const products = await productManager.getProducts()
-  res.json(products)
-}
-)
+  try {
+    const { limit = 10, page = 1, sort, query } = req.query
 
-// GET products - Obtener un producto
-app.get('/api/products/:pid',async (req, res) => {
-const pid = parseInt(req.params['pid'])
-const product = await productManager.getProductById(pid)
-if (!product) return res.status(404).json({ error: 'Producto no encontrado' })
-res.json(product)
-}
-)
+    let filter = {}
 
-// POST products - Agregar un producto
-app.post('/api/products',async (req, res) => {
-await productManager.addProduct(req.body)
-const products = await productManager.getProducts()
-io.emit("productsUpdated", products)
-res.json({ message: 'Producto agregado' })
-}
-)
+    if (query) {
+      if (query === 'true' || query === 'false') {
+        filter.status = query === 'true'
+      } else {
+        filter.category = query
+      }
+    }
 
-// DELETE products - Borrar producto
-app.delete('/api/products/:pid',async (req, res) => {
-const pid = parseInt(req.params['pid'])
-const result = await productManager.deleteProduct(pid)
-if (!result) return res.status(404).json({ error: 'Producto no encontrado' })
-const products = await productManager.getProducts() //Se obtiene la lista para mandar al websocket
-io.emit("productsUpdated", products)
-res.json({ message: 'Producto eliminado' })
-}
-)
+    let sortOption = {}
+    if (sort === 'asc') sortOption.price = 1
+    if (sort === 'desc') sortOption.price = -1
 
-//PUT products - Actualizar producto
-app.put('/api/products/:pid',async (req, res) => {
-    const id = parseInt(req.params['pid'])
-    const body = req.body
-    const prodActualizado = await productManager.updateProduct(id, body)
-    if (!prodActualizado) return res.status(404).json({ error: 'Producto no encontrado' })
-    res.json(prodActualizado)
+    const result = await ProductModel.paginate(filter, {
+      page: Number(page),
+      limit: Number(limit),
+      sort: Object.keys(sortOption).length ? sortOption : undefined,
+      lean: true
+    })
+
+    res.json({
+      status: 'success',
+      payload: result.docs,
+      totalPages: result.totalPages,
+      prevPage: result.prevPage,
+      nextPage: result.nextPage,
+      page: result.page,
+      hasPrevPage: result.hasPrevPage,
+      hasNextPage: result.hasNextPage,
+      prevLink: result.hasPrevPage
+        ? `/api/products?page=${result.prevPage}&limit=${limit}`
+        : null,
+      nextLink: result.hasNextPage
+        ? `/api/products?page=${result.nextPage}&limit=${limit}`
+        : null
+    })
+  } catch {
+    res.status(500).json({ status: 'error', error: 'Error al obtener productos' })
+  }
 })
 
+// POST products
+app.post('/api/products', async (req, res) => {
+  try {
+    const product = await ProductModel.create(req.body)
+    res.json(product)
+  } catch {
+    res.status(500).json({ error: 'Error al crear producto' })
+  }
+})
 
-/////////////// CARRITOS //////////////////////
+//////////////////// API CARTS ////////////////////
 
-//POST carts - Creo un nuveo carrito VACIO
-app.post('/api/carts',async (req, res) => {
-const cart = await cartManager.newCart()
-res.json(cart)
-}
-)
+app.post('/api/carts', async (req, res) => {
+  const cart = await cartManager.newCart()
+  res.json(cart)
+})
 
-//GET carts - Ver un carrito por su id
-app.get('/api/carts/:cid',async (req, res) => {
-const id = parseInt(req.params['cid'])
-const cart = await cartManager.getCartById(id)
-res.json(cart)
-}
-)
+app.get('/api/carts/:cid', async (req, res) => {
+  const cart = await cartManager.getCartById(req.params.cid)
+  if (!cart) return res.status(404).json({ error: 'Carrito no encontrado' })
+  res.json(cart)
+})
 
-//GET carts - Ver un carrito por su id
-app.post('/api/carts/:cid/product/:pid',async (req, res) => {
-const cid = parseInt(req.params['cid'])
-const pid = parseInt(req.params['pid'])
-const cart = await cartManager.addProductToCart(cid,pid)
-if (!cart) return res.status(404).json({ error: 'Carrito o producto no encontrado' })
-res.json(cart)
-}
-)
+app.post('/api/carts/:cid/product/:pid', async (req, res) => {
+  const cart = await cartManager.addProductToCart(
+    req.params.cid,
+    req.params.pid
+  )
+  if (!cart) return res.status(404).json({ error: 'Carrito o producto no encontrado' })
+  res.json(cart)
+})
 
-// Listener de websockets para que funcione el formulario
-io.on("connection", socket => {
+app.delete('/api/carts/:cid/products/:pid', async (req, res) => {
+  const cart = await CartModel.findById(req.params.cid)
+  if (!cart) return res.status(404).json({ error: 'Carrito no encontrado' })
 
-    // Crear producto vía websocket
-    socket.on("newProduct", async (data) => {
-        await productManager.addProduct(data)
-        const products = await productManager.getProducts()
-        io.emit("productsUpdated", products)
-    })
+  cart.products = cart.products.filter(
+    p => p.product.toString() !== req.params.pid
+  )
 
-    // Eliminar producto vía websocket
-    socket.on("deleteProduct", async (id) => {
-        await productManager.deleteProduct(id)
-        const products = await productManager.getProducts()
-        io.emit("productsUpdated", products)
-    })
+  await cart.save()
+  res.json({ message: 'Producto eliminado del carrito' })
+})
+
+app.put('/api/carts/:cid', async (req, res) => {
+  const cart = await CartModel.findByIdAndUpdate(
+    req.params.cid,
+    { products: req.body },
+    { new: true }
+  )
+  if (!cart) return res.status(404).json({ error: 'Carrito no encontrado' })
+  res.json(cart)
+})
+
+app.put('/api/carts/:cid/products/:pid', async (req, res) => {
+  const { quantity } = req.body
+  const cart = await CartModel.findById(req.params.cid)
+  if (!cart) return res.status(404).json({ error: 'Carrito no encontrado' })
+
+  const product = cart.products.find(
+    p => p.product.toString() === req.params.pid
+  )
+
+  if (!product) return res.status(404).json({ error: 'Producto no encontrado en carrito' })
+
+  product.quantity = quantity
+  await cart.save()
+  res.json(cart)
+})
+
+app.delete('/api/carts/:cid', async (req, res) => {
+  const cart = await CartModel.findByIdAndUpdate(
+    req.params.cid,
+    { products: [] },
+    { new: true }
+  )
+  if (!cart) return res.status(404).json({ error: 'Carrito no encontrado' })
+  res.json({ message: 'Carrito vaciado' })
 })

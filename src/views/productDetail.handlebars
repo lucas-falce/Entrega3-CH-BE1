@@ -1,0 +1,49 @@
+<h1>{{product.title}}</h1>
+
+<p><strong>Descripción:</strong> {{product.description}}</p>
+<p><strong>Precio:</strong> ${{product.price}}</p>
+<p><strong>Categoría:</strong> {{product.category}}</p>
+<p><strong>Stock:</strong> {{product.stock}}</p>
+
+<hr>
+
+<button id="addToCartBtn">Agregar al carrito</button>
+
+<p id="statusMsg"></p>
+
+<script>
+  const productId = "{{product._id}}"
+
+  const btn = document.getElementById("addToCartBtn")
+  const status = document.getElementById("statusMsg")
+
+  btn.addEventListener("click", async () => {
+    const cartId = prompt("Ingresá el ID del carrito:")
+
+    if (!cartId) {
+      status.innerText = "Operación cancelada"
+      return
+    }
+
+    try {
+      const res = await fetch(
+        `/api/carts/${cartId}/product/${productId}`,
+        { method: "POST" }
+      )
+
+      if (!res.ok) {
+        status.innerText = "Error al agregar al carrito"
+        return
+      }
+
+      status.innerText = "Producto agregado al carrito ✔️"
+    } catch (err) {
+      status.innerText = "Error de conexión"
+    }
+  })
+</script>
+
+<br><br>
+
+<a href="/products">← Volver a productos</a>
+

@@ -1,79 +1,47 @@
-import fs from 'fs/promises'
-import ProductManager from './products.js'
+import CartModel from '../models/cart.model.js'
+import ProductModel from '../models/product.model.js'
 
 export default class CartManager {
-  constructor(path) {
-    this.path = path
-    this.productManager = new ProductManager('./data/products.json')
-  }
 
   //Obtengo la lista de carritos
   async getCarts() {
-    try {
-      const data = await fs.readFile(this.path, 'utf-8')
-      return JSON.parse(data)
-    } catch {
-      return []
-    }
+    return await CartModel.find().lean()
   }
 
   //Obtengo la data de un carrito
   async getCartById(id) {
-    try {
-      const carts = await this.getCarts()
-      id = Number(id)
-      return carts.find(c => c.id === id) || null
-    } catch {
-      return null
-    }
+    return await CartModel.findById(id)
+      .populate('products.product')
+      .lean()
   }
 
   //Creo un nuevo carrito VACIO
   async newCart() {
-    try {
-      const carts = await this.getCarts()
-      const id = carts.length
-        ? Math.max(...carts.map(c => c.id)) + 1 //Obtengo el id del carrito
-        : 1
-
-      const nuevoCarrito = { id, products: [] }
-      carts.push(nuevoCarrito)
-
-      await fs.writeFile(this.path, JSON.stringify(carts, null, 2))
-      return nuevoCarrito
-    } catch {
-      return null
-    }
+    const nuevoCarrito = await CartModel.create({ products: [] })
+    return nuevoCarrito
   }
 
   //Recibo carrito id y producto id y le agrego UNA unidad al producto en el carrito
   async addProductToCart(cid, pid) {
-    try {
-      const carts = await this.getCarts()
-      cid = Number(cid)
-      pid = Number(pid)
 
-      const index = carts.findIndex(c => c.id === cid)
-      if (index === -1) return null
+    const cart = await CartModel.findById(cid)
+    if (!cart) return null
 
-      //Controlo que exista el producto
-      const product = await this.productManager.getProductById(pid)
-      if (!product) return null
+    const product = await ProductModel.findById(pid)
+    if (!product) return null
 
-      //Agrego el producto
-      const ProductoDelCarrito = carts[index].products.find(p => p.product === pid)
+    const productoEnCarrito = cart.products.find(
+      p => p.product.toString() === pid
+    )
 
-      if (ProductoDelCarrito) {
-        ProductoDelCarrito.quantity++
-      } else {
-        carts[index].products.push({ product: pid, quantity: 1 })
-      }
-
-      await fs.writeFile(this.path, JSON.stringify(carts, null, 2))
-      return carts[index]
-
-    } catch {
-      return null
+    if (productoEnCarrito) {
+      productoEnCarrito.quantity++
+    } else {
+      cart.products.push({ product: pid, quantity: 1 })
     }
+
+    await cart.save()
+    return cart
   }
+
 }

@@ -1,0 +1,39 @@
+<h1>Productos</h1>
+
+<ul>
+{{#each products}}
+  <li>
+    <strong>{{this.title}}</strong> - ${{this.price}}
+    <a href="/products/{{this._id}}">Ver detalle</a>
+  </li>
+{{/each}}
+</ul>
+
+<hr>
+
+<div>
+  {{#if hasPrevPage}}
+    <a href="/products?page={{prevPage}}">⬅ Anterior</a>
+  {{/if}}
+
+  Página {{page}} de {{totalPages}}
+
+  {{#if hasNextPage}}
+    <a href="/products?page={{nextPage}}">Siguiente ➡</a>
+  {{/if}}
+</div>
+
+<hr>
+
+<button id="goToCartBtn">Ver carrito</button>
+
+<script>
+  document.getElementById("goToCartBtn").addEventListener("click", () => {
+    const cartId = prompt("Ingresá el ID del carrito:")
+    if (cartId) {
+      window.location.href = `/carts/${cartId}`
+    }
+  })
+</script>
+
+<hr>
